@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { ViewType } from '@/lib/types';
 import { useLanguage } from '@/lib/i18n';
+import { authClient } from '@/lib/auth-client';
 import { 
   LayoutDashboard, 
   Receipt, 
@@ -16,7 +18,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  LogOut
+  LogOut,
+  Loader2
 } from 'lucide-react';
 
 import { RelayMark } from './RelayMark';
@@ -37,6 +40,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lowStockCount
 }) => {
   const { t } = useLanguage();
+  const router = useRouter();
+
+  // Better Auth Live Session Data
+  const { data: sessionData, isPending } = authClient.useSession();
+  const user = sessionData?.user;
+  const userName = user?.name || 'Store Owner';
+  const userEmail = user?.email || 'owner@counter.app';
+  const userInitials = userName
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'SO';
+
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
+
+  /**
+   * Better Auth Logout Handler
+   * Clears HttpOnly Session Cookie & Redirects to Login
+   */
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await authClient.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const mainNavItems: { id: ViewType; labelKey: Parameters<typeof t>[0]; icon: React.ComponentType<{ className?: string }>; badge?: number }[] = [
     { id: 'dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
@@ -156,35 +192,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Cashier & Logout Footer */}
+      {/* User Profile & Logout Footer */}
       <div className="p-3 border-t border-slate-200 bg-slate-50/60 shrink-0">
         {!collapsed ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded bg-slate-900 text-white flex items-center justify-center text-xs font-mono font-bold shrink-0">
-                ER
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-mono font-bold shrink-0 shadow-xs">
+                {isPending ? '...' : userInitials}
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-slate-900 truncate">Elena Rostova</div>
-                <div className="text-[10px] font-mono text-slate-500 truncate">Reg #01 • {t('cashier')}</div>
+                <div className="text-xs font-semibold text-slate-900 truncate">
+                  {isPending ? 'Loading...' : userName}
+                </div>
+                <div className="text-[10px] font-mono text-slate-500 truncate" title={userEmail}>
+                  {isPending ? '...' : userEmail}
+                </div>
               </div>
             </div>
 
             <button
-              onClick={() => alert(t('logOut'))}
-              className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 rounded transition-colors"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors disabled:opacity-50 cursor-pointer"
               title={t('logOut')}
             >
-              <LogOut className="w-4 h-4" />
+              {isLoggingOut ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
+              ) : (
+                <LogOut className="w-4 h-4" />
+              )}
             </button>
           </div>
         ) : (
           <button
-            onClick={() => alert(t('logOut'))}
-            className="w-full flex justify-center text-slate-400 hover:text-slate-900 py-1"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full flex justify-center text-slate-400 hover:text-rose-600 py-1 transition-colors disabled:opacity-50 cursor-pointer"
             title={t('logOut')}
           >
-            <LogOut className="w-4 h-4" />
+            {isLoggingOut ? (
+              <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
+            ) : (
+              <LogOut className="w-4 h-4" />
+            )}
           </button>
         )}
       </div>

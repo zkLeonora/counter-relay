@@ -1,16 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ViewType } from '@/lib/types';
 import { useLanguage } from '@/lib/i18n';
+import { authClient } from '@/lib/auth-client';
 import { 
   Search, 
   Scan, 
   MapPin, 
   Calendar,
   ChevronDown,
-  UserCheck,
-  Check
+  User,
+  LogOut,
+  Check,
+  Loader2
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -27,8 +31,31 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenQuickScan,
 }) => {
   const { language, setLanguage, t } = useLanguage();
+  const router = useRouter();
+
+  // Better Auth Live Session Data
+  const { data: sessionData, isPending } = authClient.useSession();
+  const user = sessionData?.user;
+  const userName = user?.name || 'Store Owner';
+  const userEmail = user?.email || 'owner@counter.app';
+
   const [showDateDropdown, setShowDateDropdown] = useState<boolean>(false);
+  const [showUserDropdown, setShowUserDropdown] = useState<boolean>(false);
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [selectedDateFilter, setSelectedDateFilter] = useState<'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'customRange'>('today');
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await authClient.signOut();
+      router.push('/login');
+      router.refresh();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const dateOptions: { id: 'today' | 'yesterday' | 'last7Days' | 'last30Days' | 'customRange'; labelKey: Parameters<typeof t>[0]; dateLabel: string }[] = [
     { id: 'today', labelKey: 'today', dateLabel: 'Jul 28, 2026' },
@@ -90,13 +117,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Language Switcher, Quick Action, Shift Info, Date Dropdown */}
+      {/* Right: Language Switcher, Quick Action, Shift Info, User Menu & Dropdown */}
       <div className="flex items-center gap-3">
         {/* Language Switcher Pill EN / ID */}
         <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 text-xs font-mono">
           <button
             onClick={() => setLanguage('en')}
-            className={`px-2 py-0.5 rounded-sm font-semibold transition-all ${
+            className={`px-2 py-0.5 rounded-sm font-semibold transition-all cursor-pointer ${
               language === 'en'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900'
@@ -106,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             onClick={() => setLanguage('id')}
-            className={`px-2 py-0.5 rounded-sm font-semibold transition-all ${
+            className={`px-2 py-0.5 rounded-sm font-semibold transition-all cursor-pointer ${
               language === 'id'
                 ? 'bg-slate-900 text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900'
@@ -119,27 +146,69 @@ export const Header: React.FC<HeaderProps> = ({
         {onOpenQuickScan && (
           <button
             onClick={onOpenQuickScan}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-medium transition-colors shadow-xs"
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-xs font-medium transition-colors shadow-xs cursor-pointer"
           >
             <Scan className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">{t('scanBarcode')}</span>
           </button>
         )}
 
-        {/* Shift Badge */}
-        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 border border-slate-200 rounded-md text-xs bg-slate-50">
-          <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <div className="flex items-center gap-1.5 text-[11px] font-mono">
-            <span className="text-slate-900 font-semibold">Elena R.</span>
-            <span className="text-slate-400">#842</span>
-          </div>
+        {/* User Account Dropdown Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowUserDropdown(!showUserDropdown)}
+            className="flex items-center gap-2 px-2.5 py-1 border border-slate-200 rounded-md text-xs bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
+          >
+            <div className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">
+              <User className="w-3 h-3 text-white" />
+            </div>
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-slate-900 font-semibold text-[11px] leading-tight truncate max-w-[120px]">
+                {isPending ? 'Loading...' : userName}
+              </span>
+            </div>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {showUserDropdown && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setShowUserDropdown(false)} 
+              />
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-50 p-2 text-xs font-sans">
+                {/* User Info Header */}
+                <div className="px-2 py-1.5 border-b border-slate-100 mb-1">
+                  <p className="font-semibold text-slate-900 truncate">{userName}</p>
+                  <p className="text-[11px] text-slate-500 truncate mt-0.5">{userEmail}</p>
+                </div>
+
+                {/* Logout Action */}
+                <button
+                  onClick={() => {
+                    setShowUserDropdown(false);
+                    handleLogout();
+                  }}
+                  disabled={isLoggingOut}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition-colors text-left font-medium cursor-pointer disabled:opacity-50"
+                >
+                  {isLoggingOut ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <LogOut className="w-3.5 h-3.5" />
+                  )}
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Interactive Date Selector & Dropdown */}
         <div className="relative">
           <button
             onClick={() => setShowDateDropdown(!showDateDropdown)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-md text-xs font-medium text-slate-700 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-md text-xs font-medium text-slate-700 transition-colors shadow-xs cursor-pointer"
           >
             <Calendar className="w-3.5 h-3.5 text-slate-500" />
             <span>{t(currentOption.labelKey)}</span>
@@ -161,7 +230,7 @@ export const Header: React.FC<HeaderProps> = ({
                         setSelectedDateFilter(opt.id);
                         setShowDateDropdown(false);
                       }}
-                      className="w-full flex items-center justify-between px-3 py-2 text-left rounded hover:bg-slate-100 transition-colors group"
+                      className="w-full flex items-center justify-between px-3 py-2 text-left rounded hover:bg-slate-100 transition-colors group cursor-pointer"
                     >
                       <div>
                         <div className="font-medium text-slate-900">{t(opt.labelKey)}</div>
