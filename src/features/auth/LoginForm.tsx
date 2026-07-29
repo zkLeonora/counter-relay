@@ -48,8 +48,7 @@ function LoginFormContent() {
       }
 
       // Successful login -> Redirect to POS Dashboard
-      router.push('/');
-      router.refresh();
+      window.location.href = '/';
     } catch (err: unknown) {
       if (err instanceof Error) {
         setAuthError(err.message);
