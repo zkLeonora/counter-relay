@@ -4,6 +4,12 @@ import React, { useState } from 'react';
 import { RestockItem, Order, SalesMetricPoint } from '@/lib/types';
 import { useLanguage } from '@/lib/utils/i18n';
 import { 
+  DashboardData, 
+  DashboardSummary, 
+  RecentOrder as RecentOrderType, 
+  LowStockProduct 
+} from '@/features/dashboard/types';
+import { 
   TrendingUp, 
   AlertTriangle, 
   ArrowUpRight, 
@@ -16,7 +22,8 @@ import {
 interface DashboardViewProps {
   restockItems: RestockItem[];
   recentOrders: Order[];
-  hourlyMetrics: SalesMetricPoint[];
+  hourlyMetrics?: SalesMetricPoint[];
+  dashboardData?: DashboardData;
   onNavigateToPOS: () => void;
   onNavigateToInventory: () => void;
   onSelectOrder: (order: Order) => void;
@@ -25,6 +32,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   restockItems,
   recentOrders,
+  dashboardData,
   onNavigateToPOS,
   onNavigateToInventory,
   onSelectOrder
@@ -34,7 +42,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [restockFilter, setRestockFilter] = useState<'all' | 'critical' | 'warning'>('all');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const filteredRestock = restockItems.filter(item => {
+  const restockList = (dashboardData?.lowStockProducts && dashboardData.lowStockProducts.length > 0)
+    ? dashboardData.lowStockProducts.map(p => ({
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        supplier: p.supplier || 'Primary Supplier',
+        supplierEmail: 'orders@supplier.com',
+        binLocation: p.binLocation || 'A-01-01',
+        currentStock: p.stock,
+        reorderPoint: p.minimumStock || 5,
+        costPerUnit: p.costPrice || 0,
+        suggestedQty: Math.max(10, (p.minimumStock || 5) * 2 - p.stock),
+        status: p.status || (p.stock <= 2 ? 'critical' : 'warning'),
+      }))
+    : restockItems;
+
+  const filteredRestock = restockList.filter(item => {
     if (restockFilter === 'critical') return item.status === 'critical';
     if (restockFilter === 'warning') return item.status === 'warning';
     return true;
@@ -42,6 +66,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Dynamic Chart Datasets & Axis Labels based on timeRange (Day / Week / Month)
   const getChartData = () => {
+    if (timeRange === 'day' && dashboardData?.chart && dashboardData.chart.length > 0) {
+      const labels = dashboardData.chart.map(c => c.label);
+      const values = dashboardData.chart.map(c => c.revenue);
+      const pathPOS = "M 10 120 C 90 90, 170 60, 250 35 C 330 20, 410 15, 490 10";
+      const pathOnline = "M 10 130 C 90 120, 170 100, 250 85 C 330 70, 410 50, 490 35";
+      const maxVal = Math.max(...values, 1);
+      const peakIdx = values.indexOf(maxVal);
+      return { labels, values, pathPOS, pathOnline, peakIndex: peakIdx >= 0 ? peakIdx : 0, peakPrefix: language === 'id' ? 'Jam Puncak' : 'Peak Hour' };
+    }
+
     if (timeRange === 'week') {
       const weekDaysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       const weekDaysId = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -71,11 +105,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   const chartInfo = getChartData();
-  const stepX = 480 / (chartInfo.labels.length - 1);
+  const labelCount = Math.max(2, chartInfo.labels.length);
+  const stepX = 480 / (labelCount - 1);
   const pointCoords = chartInfo.labels.map((lbl, idx) => ({
-    x: 10 + idx * stepX,
+    x: 10 + (isNaN(idx * stepX) ? 0 : idx * stepX),
     label: lbl,
-    val: chartInfo.values[idx],
+    val: chartInfo.values[idx] ?? 0,
   }));
 
   const handleMouseMoveOnChart = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -110,7 +145,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <div>
-              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">$18,420.50</div>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">
+                ${(dashboardData?.summary?.revenueToday ?? 18420.50).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
               <div className="text-xs text-slate-500 mt-0.5">{t('vsYesterday')} $16,130.00</div>
             </div>
             {/* Smooth SVG sparkline micro graph */}
@@ -133,8 +170,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <div>
-              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">142</div>
-              <div className="text-xs text-slate-500 mt-0.5">{t('avgBasket')}: <span className="font-mono">$129.72</span></div>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">
+                {dashboardData?.summary?.ordersToday ?? 142}
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {t('avgBasket')}: <span className="font-mono">${(dashboardData?.summary?.averageBasket ?? 129.72).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
             </div>
             {/* Sparkline */}
             <svg className="w-24 h-9 text-slate-900 overflow-visible" viewBox="0 0 100 30" fill="none">
@@ -158,7 +199,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="mt-3 flex items-baseline justify-between">
             <div>
-              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">8 SKUs</div>
+              <div className="text-2xl font-bold text-slate-900 tabular-nums font-mono">
+                {dashboardData?.summary?.lowStockCount ?? 8} SKUs
+              </div>
               <div className="text-xs text-amber-700 font-medium mt-0.5 flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-amber-600" />
                 2 {t('outOfStock')}
@@ -261,7 +304,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
 
                 {/* Vertical guide line on hover */}
-                {hoveredIndex !== null && (
+                {hoveredIndex !== null && pointCoords[hoveredIndex] && !isNaN(pointCoords[hoveredIndex].x) && (
                   <line
                     x1={pointCoords[hoveredIndex].x}
                     y1="0"
@@ -274,7 +317,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 )}
 
                 {/* Hover Tooltip Card (Appears ONLY when hovering over chart line) */}
-                {hoveredIndex !== null && (
+                {hoveredIndex !== null && pointCoords[hoveredIndex] && !isNaN(pointCoords[hoveredIndex].x) && (
                   <foreignObject 
                     x={Math.max(10, Math.min(360, pointCoords[hoveredIndex].x - 65))} 
                     y="10"
@@ -317,10 +360,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="py-3 space-y-3.5 flex-1 overflow-y-auto max-h-[260px]">
-            {recentOrders.slice(0, 4).map(order => (
+            {((dashboardData?.recentOrders && dashboardData.recentOrders.length > 0)
+              ? dashboardData.recentOrders.slice(0, 4).map(o => ({
+                  id: o.id,
+                  customerName: o.customerName,
+                  receiptNumber: o.orderNumber,
+                  itemCountText: 'Live Order',
+                  total: o.totalAmount,
+                  paymentMethod: o.paymentMethod,
+                  paymentStatus: o.paymentStatus,
+                  rawOrder: null
+                }))
+              : recentOrders.slice(0, 4).map(o => ({
+                  id: o.id,
+                  customerName: o.customerName,
+                  receiptNumber: o.receiptNumber,
+                  itemCountText: `${o.items ? o.items.length : 1} items`,
+                  total: o.total,
+                  paymentMethod: o.paymentMethod,
+                  paymentStatus: o.paymentStatus,
+                  rawOrder: o
+                }))
+            ).map(order => (
               <div 
                 key={order.id} 
-                onClick={() => onSelectOrder(order)}
+                onClick={() => order.rawOrder && onSelectOrder(order.rawOrder)}
                 className="flex items-center justify-between p-2.5 rounded border border-slate-100 hover:border-slate-300 hover:bg-slate-50/80 cursor-pointer transition-all"
               >
                 <div className="flex items-center gap-3">
@@ -331,7 +395,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-slate-900">{order.customerName}</div>
-                    <div className="text-[10px] font-mono text-slate-500">{order.receiptNumber} • {order.items.length} items</div>
+                    <div className="text-[10px] font-mono text-slate-500">{order.receiptNumber} • {order.itemCountText}</div>
                   </div>
                 </div>
 
@@ -350,20 +414,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           {/* Quick Payment Channel Stats */}
-          <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-2 bg-slate-50 rounded">
-              <div className="text-[10px] text-slate-500 uppercase font-mono">{t('card')}</div>
-              <div className="font-mono font-bold text-slate-900 mt-0.5">68%</div>
-            </div>
-            <div className="p-2 bg-slate-50 rounded">
-              <div className="text-[10px] text-slate-500 uppercase font-mono">{t('applePay')}</div>
-              <div className="font-mono font-bold text-slate-900 mt-0.5">24%</div>
-            </div>
-            <div className="p-2 bg-slate-50 rounded">
-              <div className="text-[10px] text-slate-500 uppercase font-mono">{t('cash')}</div>
-              <div className="font-mono font-bold text-slate-900 mt-0.5">8%</div>
-            </div>
-          </div>
+          {(() => {
+            const list = dashboardData?.recentOrders || [];
+            const total = Math.max(1, list.length);
+            const cardPct = Math.round((list.filter(o => o.paymentMethod === 'card').length / total) * 100);
+            const cashPct = Math.round((list.filter(o => o.paymentMethod === 'cash').length / total) * 100);
+            const otherPct = Math.max(0, 100 - cardPct - cashPct);
+            return (
+              <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="p-2 bg-slate-50 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase font-mono">{t('card')}</div>
+                  <div className="font-mono font-bold text-slate-900 mt-0.5">{cardPct}%</div>
+                </div>
+                <div className="p-2 bg-slate-50 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase font-mono">{t('cash')}</div>
+                  <div className="font-mono font-bold text-slate-900 mt-0.5">{cashPct}%</div>
+                </div>
+                <div className="p-2 bg-slate-50 rounded">
+                  <div className="text-[10px] text-slate-500 uppercase font-mono">Other/QRIS</div>
+                  <div className="font-mono font-bold text-slate-900 mt-0.5">{otherPct}%</div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
