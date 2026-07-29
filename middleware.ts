@@ -17,8 +17,9 @@ export function middleware(request: NextRequest) {
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
   const isApiRoute = pathname.startsWith("/api");
   const isStaticAsset = pathname.startsWith("/_next") || pathname.includes(".");
+  const isServerAction = request.headers.has("next-action");
 
-  if (isApiRoute || isStaticAsset) {
+  if (isApiRoute || isStaticAsset || isServerAction) {
     return NextResponse.next();
   }
 

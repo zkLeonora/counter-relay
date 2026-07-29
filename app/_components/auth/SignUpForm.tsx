@@ -66,8 +66,11 @@ export function SignUpForm() {
         });
       }
 
-      // Redirect to Dashboard
-      router.push('/');
+      // Sign out session so the user must sign in manually on /login
+      await authClient.signOut();
+
+      // Redirect to Login Page with registered=true flag
+      router.push('/login?registered=true');
       router.refresh();
     } catch (err: unknown) {
       if (err instanceof Error) {

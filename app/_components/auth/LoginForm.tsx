@@ -5,14 +5,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Mail, Lock, Loader2, CheckCircle2 } from 'lucide-react';
 import { loginSchema, type LoginFormValues } from '@/lib/auth-schema';
 import { authClient } from '@/lib/auth-client';
 import { FormField } from './FormField';
 
-export function LoginForm() {
+function LoginFormContent() {
   const [authError, setAuthError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isJustRegistered = searchParams.get('registered') === 'true';
 
   const {
     register,
@@ -71,6 +74,17 @@ export function LoginForm() {
             Enter your details to proceed further
           </p>
         </header>
+
+        {/* Registration Success Banner */}
+        {isJustRegistered && !authError && (
+          <div 
+            role="status" 
+            className="mb-3 p-2.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Account created successfully! Please sign in with your email & password.</span>
+          </div>
+        )}
 
         {/* Global Auth Error Alert */}
         {authError && (
@@ -159,5 +173,13 @@ export function LoginForm() {
         </p>
       </footer>
     </div>
+  );
+}
+
+export function LoginForm() {
+  return (
+    <React.Suspense fallback={<div className="text-xs text-slate-400 text-center py-4">Loading...</div>}>
+      <LoginFormContent />
+    </React.Suspense>
   );
 }
