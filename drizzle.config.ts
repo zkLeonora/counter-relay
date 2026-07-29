@@ -8,7 +8,7 @@ config({ path: '.env.local' });
 const dbUrl = (process.env.DATABASE_URL || '').replace(':6543/', ':5432/');
 
 export default defineConfig({
-  schema: './lib/db/schema/index.ts',
+  schema: './src/lib/db/schema/index.ts',
   out: './drizzle',
   dialect: 'postgresql',
   schemaFilter: ['public'],
