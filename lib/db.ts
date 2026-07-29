@@ -7,11 +7,14 @@ import * as schema from './db/schema/index';
  * Connection URL is fetched from process.env.DATABASE_URL.
  * Configured with prepare: false for Supabase pooler compatibility.
  */
-const rawUrl = process.env.DATABASE_URL || '';
-const connectionString = rawUrl.replace(':6543/', ':5432/');
+const connectionString = process.env.DATABASE_URL || '';
 
 const client = postgres(connectionString, {
   prepare: false,
+  ssl: 'require',
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
 });
 
 export const db = drizzle(client, { schema });
